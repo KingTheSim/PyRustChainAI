@@ -23,8 +23,7 @@ class Blockchain:
         self.block_saver(block)
         return block
 
-    @classmethod
-    def block_saver(block: dict):
+    def block_saver(self, block: dict):
         filename = "blockchain.json"
         if not os.path.isfile(filename):
             with open(filename, "w") as f:

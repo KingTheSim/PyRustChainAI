@@ -1,28 +1,28 @@
-use pyo3;
+///use pyo3;
 use chrono::prelude::*;
-use blake2::{Blake2b512, Blake2s256, Digest};
+use blake2::{Blake2b512, Digest, digest::{KeyInit, Update}};
 use bincode;
 use serde::{Deserialize, Serialize};
+///use serde_json;
 
 pub fn time_getter() -> String {
     Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
 #[derive(Serialize, Deserialize)]
-struct HashWrapper([u8; 64]);
-
-#[derive(Serialize, Deserialize)]
 pub struct Block {
-    index: u64,
+    index: usize,
     timestamp: String,
     proof: u64,
-    previous_hash: HashWrapper,
+    previous_hash: Vec<u8>,
 
 }
 
 impl Block {
-    fn generator(&self, index: u64, proof: u64, previous_hash: Blake2b512) -> Block {
+    pub fn generator(index: usize, previous_hash: Vec<u8>) -> Block {
         let timestamp = time_getter();
+        let proof = if index == -1 {0} else {self.proof_of_work(&self)};
+
         Block {
             index: index + 1,
             timestamp,
@@ -31,20 +31,57 @@ impl Block {
         }
     }
 
-    fn hasher(&self) -> Blake2b512 {
+    pub fn hasher(&self) -> Vec<u8> {
         let serialization = bincode::serialize(&self).unwrap();
         let mut hash = Blake2b512::new();
-        hash.update(&serialization);
-        hash.finalize();
+        Update::update(&mut hash, &serialization);
+        let result = hash.finalize();
 
-        hash
+        result.to_vec()
         
     }
 }
 
 pub struct BlockChain {
     chain: Vec<Block>,
-    length: u64,
+    index: usize,
+}
+
+impl BlockChain {
+    fn generator() -> BlockChain {
+        BlockChain {
+            chain: vec![Block::generator(-1, vec![0])],
+            index: 0
+        }
+    }
+
+    fn cur_block(&self) -> &Block {
+        &self.chain[self.index]
+    }
+
+    fn proof_of_work(&self) -> u64 {
+        let current_proof = self.cur_block().proof;
+
+        let mut new_proof = 1;
+        
+        loop {
+            let hash_operation = format!("{:x}",
+                Blake2b512::new()
+                    .chain(format!("{:x}", new_proof * new_proof - current_proof * current_proof))
+                    .finalize());
+
+            if hash_operation.starts_with("000") {
+                break
+            }
+
+            new_proof += 1;
+            }
+        new_proof
+    }
+
+    pub fn blockchain_extender(&self) -> () {
+        self.chain.push(Block::generator(self.index, Block::hasher(self.cur_block()));
+    };
 }
 
 
